@@ -4,9 +4,13 @@ import com.ucdual.auth_service.dto.LoginRequest;
 import com.ucdual.auth_service.dto.RegisterRequest;
 import com.ucdual.auth_service.model.User;
 import com.ucdual.auth_service.repository.UserRepository;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import com.ucdual.auth_service.dto.LoginResponse;
 import com.ucdual.auth_service.util.JwtUtil;
 
 @Service
@@ -26,7 +30,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public String login(LoginRequest request) {
+    public LoginResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
             .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -34,6 +38,7 @@ public class UserServiceImpl implements UserService {
             throw new RuntimeException("Invalid credentials");
         }
 
-        return jwtUtil.generateToken(user.getEmail());
+        String token = jwtUtil.generateToken(user.getEmail(), user.getId());
+        return new LoginResponse(token, user.getId().toString());
     }
 }
