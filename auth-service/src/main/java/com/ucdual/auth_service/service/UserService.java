@@ -8,4 +8,6 @@ import com.ucdual.auth_service.model.User;
 public interface UserService {
     User register(RegisterRequest request);
     LoginResponse login(LoginRequest request);
+
+    User findById(Long id);
 }

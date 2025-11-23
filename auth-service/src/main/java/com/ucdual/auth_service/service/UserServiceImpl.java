@@ -19,7 +19,7 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtUtil jwtUtil;   //  <-- FALTAVA ISSO
+    private final JwtUtil jwtUtil;
 
     @Override
     public User register(RegisterRequest request) {
@@ -41,4 +41,11 @@ public class UserServiceImpl implements UserService {
         String token = jwtUtil.generateToken(user.getEmail(), user.getId());
         return new LoginResponse(token, user.getId().toString());
     }
+    
+    @Override
+    public User findById(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
 }

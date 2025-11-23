@@ -1,6 +1,7 @@
 package com.ucdual.auth_service.controller;
 
 import com.ucdual.auth_service.dto.LoginRequest;
+import com.ucdual.auth_service.dto.LoginResponse;
 import com.ucdual.auth_service.dto.RegisterRequest;
 import com.ucdual.auth_service.model.User;
 import com.ucdual.auth_service.service.UserService;
@@ -29,11 +30,12 @@ public class AuthController {
         return ResponseEntity.ok(user);
     }
 
-    @PostMapping("/login")
+   @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
-        String token = userService.login(request);
-        return ResponseEntity.ok(Map.of("token", token));
+        LoginResponse response = userService.login(request);
+        return ResponseEntity.ok(response);
     }
+
 
     @GetMapping("/validate")
     public ResponseEntity<?> validateToken(@RequestHeader("Authorization") String header) {
