@@ -12,7 +12,7 @@ public interface TransactionService {
 
     String deposit(DepositRequest request);
 
-    String transfer(TransferRequest request);
+    void transfer(TransferRequest request);
 
     List<Transaction> listTransactions(Long userId);
 }

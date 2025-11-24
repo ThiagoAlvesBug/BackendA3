@@ -15,8 +15,10 @@ public class Transaction {
 
     private Long userId;       // ID do usuário que fez a transação
     private Double amount;     // valor
-    private String type;       // "DEBIT" ou "CREDIT"
-    private String description;
 
+    @Enumerated(EnumType.STRING)
+    private TransactionType type; // "DEBIT" ou "CREDIT"
+    
+    private String description;
     private LocalDateTime createdAt = LocalDateTime.now();
 }

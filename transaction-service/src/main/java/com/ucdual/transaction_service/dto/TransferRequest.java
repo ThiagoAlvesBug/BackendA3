@@ -4,8 +4,8 @@ import lombok.Data;
 
 @Data
 public class TransferRequest {
-    private Long fromUserId;
-    private Long toUserId;
+    private Long userId;
+    private String pixKey;
     private Double amount;
     private String description;
 }

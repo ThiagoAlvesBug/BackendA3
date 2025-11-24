@@ -4,102 +4,131 @@ import com.ucdual.transaction_service.dto.DepositRequest;
 import com.ucdual.transaction_service.dto.TransferRequest;
 import com.ucdual.transaction_service.model.Account;
 import com.ucdual.transaction_service.model.Transaction;
+import com.ucdual.transaction_service.model.TransactionType;
 import com.ucdual.transaction_service.repository.AccountRepository;
 import com.ucdual.transaction_service.repository.TransactionRepository;
+import com.ucdual.transaction_service.repository.UserRepository;
+import com.ucdual.transaction_service.model.User;
+
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class TransactionServiceImpl implements TransactionService {
 
+    private final UserRepository userRepo;
     private final AccountRepository accountRepo;
     private final TransactionRepository transactionRepo;
 
     @Override
     public Double getBalance(Long userId) {
-        return accountRepo.findById(userId)
-                .map(Account::getBalance)
-                .orElse(0.0);
+        List<Transaction> userTransactions = transactionRepo.findAll().stream()
+                .filter(tx -> tx.getUserId().equals(userId))
+                .toList();
+
+        return userTransactions.stream()
+                .mapToDouble(tx -> tx.getType() == TransactionType.CREDIT ? tx.getAmount() : -tx.getAmount())
+                .sum();
     }
 
     @Override
-    public String deposit(DepositRequest req) {
+    @Transactional
+    public String deposit(DepositRequest request) {
+        Long userId = request.getUserId();
+        Double amount = request.getAmount();
 
-        Account acc = accountRepo.findById(req.getUserId())
-                .orElseGet(() -> {
-                    Account newAcc = new Account();
-                    newAcc.setUserId(req.getUserId());
-                    newAcc.setBalance(0.0);
-                    return newAcc;
-                });
+        if (amount == null || amount <= 0) {
+            throw new IllegalArgumentException("Valor do depósito deve ser maior que zero.");
+        }
 
-        acc.setBalance(acc.getBalance() + req.getAmount());
-        accountRepo.save(acc);
+        // registra a transação de crédito
+        Transaction tx = new Transaction();
+        tx.setUserId(userId);
+        tx.setAmount(amount);
+        tx.setType(TransactionType.CREDIT);
+        tx.setDescription("Depósito");
+        tx.setCreatedAt(LocalDateTime.now());
 
-        Transaction t = new Transaction();
-        t.setUserId(req.getUserId());
-        t.setAmount(req.getAmount());
-        t.setType("CREDIT");
-        t.setDescription("Depósito");
-        transactionRepo.save(t);
+        transactionRepo.save(tx);
 
-        return "Depósito realizado!";
+        // opcional: atualizar tabela de Account, se você estiver usando esse saldo
+        accountRepo.findById(userId).ifPresent(account -> {
+            Double current = account.getBalance() != null ? account.getBalance() : 0.0;
+            account.setBalance(current + amount);
+            accountRepo.save(account);
+        });
+
+        return "Depósito realizado com sucesso";
     }
 
     @Override
-    public String transfer(TransferRequest req) {
+    @Transactional
+    public void transfer(TransferRequest request) {
 
-        // Conta remetente
-        Account from = accountRepo.findById(req.getFromUserId())
-                .orElse(null);
+        Long sourceUserId = request.getUserId();
+        String targetPixKey = request.getPixKey();
+        Double amount = request.getAmount();
 
-        if (from == null) {
-            return "Conta remetente não existe!";
+        if (amount == null || amount <= 0) {
+            throw new IllegalArgumentException("Valor da transferência deve ser maior que zero.");
         }
 
-        if (from.getBalance() < req.getAmount()) {
-            return "Saldo insuficiente!";
+        // 1. valida saldo da origem usando Account.balance
+        Double saldoOrigem = getBalance(sourceUserId);
+        if (saldoOrigem < amount) {
+            throw new IllegalArgumentException("Saldo insuficiente para transferência.");
         }
 
-        // Conta destino
-        Account to = accountRepo.findById(req.getToUserId())
-                .orElseGet(() -> {
-                    Account newAcc = new Account();
-                    newAcc.setUserId(req.getToUserId());
-                    newAcc.setBalance(0.0);
-                    return newAcc;
-                });
+        User sourceUser = userRepo.findById(sourceUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Usuário de origem não encontrado."));
 
-        // Débito do remetente
-        from.setBalance(from.getBalance() - req.getAmount());
-        accountRepo.save(from);
+        User targetUser = userRepo.findAll().stream()
+                .filter(user -> user.getEmail().equals(targetPixKey))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Chave Pix de destino não encontrada."));
 
-        Transaction debit = new Transaction();
-        debit.setUserId(req.getFromUserId());
-        debit.setAmount(req.getAmount());
-        debit.setType("DEBIT");
-        debit.setDescription(req.getDescription());
-        transactionRepo.save(debit);
+        // 2. cria transação de DÉBITO (origem)
+        Transaction debito = new Transaction();
+        debito.setUserId(sourceUser.getId());
+        debito.setAmount(amount);
+        debito.setType(TransactionType.DEBIT);
+        debito.setDescription("Pix enviado para " + sourceUser.getName());
+        debito.setCreatedAt(LocalDateTime.now());
+        transactionRepo.save(debito);
 
-        // Crédito no destinatário
-        to.setBalance(to.getBalance() + req.getAmount());
-        accountRepo.save(to);
+        // 3. cria transação de CRÉDITO (destino)
+        Transaction credito = new Transaction();
+        credito.setUserId(targetUser.getId());
+        credito.setAmount(amount);
+        credito.setType(TransactionType.CREDIT);
+        credito.setDescription("Pix recebido do " + targetUser.getName());
+        credito.setCreatedAt(LocalDateTime.now());
+        transactionRepo.save(credito);
 
-        Transaction credit = new Transaction();
-        credit.setUserId(req.getToUserId());
-        credit.setAmount(req.getAmount());
-        credit.setType("CREDIT");
-        credit.setDescription(req.getDescription());
-        transactionRepo.save(credit);
+        // 4. atualiza os saldos na tabela Account
+        /*
+         * accountRepo.findById(userId).ifPresent(account -> {
+         * Double current = account.getBalance() != null ? account.getBalance() : 0.0;
+         * account.setBalance(current - amount);
+         * accountRepo.save(account);
+         * });
+         * 
+         * accountRepo.findById(pixKey).ifPresent(account -> {
+         * Double current = account.getBalance() != null ? account.getBalance() : 0.0;
+         * account.setBalance(current + amount);
+         * accountRepo.save(account);
+         * });
+         */
 
-        return "Transferência realizada!";
     }
 
     @Override
     public List<Transaction> listTransactions(Long userId) {
-        return transactionRepo.findByUserId(userId);
+        return transactionRepo.findByUserIdOrderByCreatedAtDesc(userId);
     }
 }

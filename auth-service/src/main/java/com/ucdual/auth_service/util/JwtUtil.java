@@ -13,7 +13,7 @@ import java.util.Date;
 @Component
 public class JwtUtil {
 
-    private final String secret = "MEUSEGREDOSUPERSECRETO123MEUSEGREDO"; // 32+ chars recomendado
+    private final String secret = "26322472-aabc-4328-95d2-b61dbe94d234"; // 32+ chars recomendado
     private final long expirationMs = 86400000; // 24h
 
     private Key getSigningKey() {
