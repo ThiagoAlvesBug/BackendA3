@@ -14,5 +14,9 @@ public interface TransactionService {
 
     void transfer(TransferRequest request);
 
+    void confirmTransaction(Long transactionId, boolean accepted);
+
+    List<Transaction> listPendingTransactions(Long userId);
+
     List<Transaction> listTransactions(Long userId);
 }
