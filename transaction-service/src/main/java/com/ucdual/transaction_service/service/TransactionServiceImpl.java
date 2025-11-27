@@ -26,18 +26,16 @@ public class TransactionServiceImpl implements TransactionService {
     private final AccountRepository accountRepo;
     private final TransactionRepository transactionRepo;
 
-    // SALDO = soma das transações aprovadas
     @Override
     public Double getBalance(Long userId) {
         List<Transaction> userTransactions = transactionRepo.findAll().stream()
-            .filter(tx -> tx.getUserId().equals(userId))
-            .filter(tx -> tx.getStatus() == TransactionStatus.APPROVED)
-            .toList();
+                .filter(tx -> tx.getUserId().equals(userId))
+                .toList();
 
         return userTransactions.stream()
-            .mapToDouble(tx -> tx.getType() == TransactionType.CREDIT ? tx.getAmount() : -tx.getAmount())
-            .sum();
-    }   
+                .mapToDouble(tx -> tx.getType() == TransactionType.CREDIT ? tx.getAmount() : -tx.getAmount())
+                .sum();
+    }
 
     @Override
     @Transactional
@@ -49,17 +47,17 @@ public class TransactionServiceImpl implements TransactionService {
             throw new IllegalArgumentException("Valor do depósito deve ser maior que zero.");
         }
 
-        // transação de crédito aprovada
+        // registra a transação de crédito
         Transaction tx = new Transaction();
         tx.setUserId(userId);
         tx.setAmount(amount);
         tx.setType(TransactionType.CREDIT);
-        tx.setStatus(TransactionStatus.APPROVED);
         tx.setDescription("Depósito");
         tx.setCreatedAt(LocalDateTime.now());
+
         transactionRepo.save(tx);
 
-        // atualiza saldo na tabela account
+        // opcional: atualizar tabela de Account, se você estiver usando esse saldo
         accountRepo.findById(userId).ifPresent(account -> {
             Double current = account.getBalance() != null ? account.getBalance() : 0.0;
             account.setBalance(current + amount);
@@ -69,7 +67,7 @@ public class TransactionServiceImpl implements TransactionService {
         return "Depósito realizado com sucesso";
     }
 
-    // TRANSFERÊNCIA (cria transação pendente)
+    // Realizar transferência entre usuários
     @Override
     @Transactional
     public void transfer(TransferRequest request) {
@@ -82,29 +80,32 @@ public class TransactionServiceImpl implements TransactionService {
             throw new IllegalArgumentException("Valor da transferência deve ser maior que zero.");
         }
 
+        // verifica usuário de origem
         User sender = userRepo.findById(senderId)
                 .orElseThrow(() -> new IllegalArgumentException("Usuário de origem não encontrado."));
 
+        // procura usuário destino pela chave pix (email)
         User receiver = userRepo.findAll().stream()
                 .filter(user -> user.getEmail().equals(targetPixKey))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Chave Pix de destino não encontrada."));
 
-        // valida saldo real
+        // valida saldo atual da conta do remetente
         Double saldo = getBalance(senderId);
         if (saldo < amount) {
             throw new IllegalArgumentException("Saldo insuficiente para transferência.");
         }
 
-        // cria transação pendente para o recebedor confirmar
+        // cria transação pendente aguardando confirmação do recebedor
         Transaction tx = new Transaction();
         tx.setSenderId(senderId);
-        tx.setUserId(receiver.getId());
+        tx.setUserId(receiver.getId()); // dono da transação é o recebedor
         tx.setAmount(amount);
-        tx.setType(TransactionType.CREDIT);
+        tx.setType(TransactionType.CREDIT); // será crédito APÓS aceitação
         tx.setStatus(TransactionStatus.PENDING);
         tx.setDescription("Pix pendente de " + sender.getName());
         tx.setCreatedAt(LocalDateTime.now());
+
         transactionRepo.save(tx);
     }
 
@@ -113,11 +114,10 @@ public class TransactionServiceImpl implements TransactionService {
         return transactionRepo.findByUserIdOrderByCreatedAtDesc(userId);
     }
 
-    // CONFIRMAR PIX (AGORA CORRETO)
+    // Confirmar ou rejeitar transação pendente
     @Override
     @Transactional
     public void confirmTransaction(Long id, boolean accepted) {
-
         Transaction tx = transactionRepo.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Transação não encontrada"));
 
@@ -125,32 +125,27 @@ public class TransactionServiceImpl implements TransactionService {
             throw new IllegalStateException("Transação já foi analisada");
         }
 
-        if (!accepted) {
+        if (accepted) {
+            tx.setStatus(TransactionStatus.APPROVED);
+
+            accountRepo.findById(tx.getUserId()).ifPresent(acc -> {
+                acc.setBalance(acc.getBalance() + tx.getAmount());
+                accountRepo.save(acc);
+            });
+
+            accountRepo.findById(tx.getSenderId()).ifPresent(acc -> {
+                acc.setBalance(acc.getBalance() - tx.getAmount());
+                accountRepo.save(acc);
+            });
+
+        } else {
             tx.setStatus(TransactionStatus.REJECTED);
-            transactionRepo.save(tx);
-            return;
         }
 
-        // APROVAÇÃO -----------------------
-        tx.setStatus(TransactionStatus.APPROVED);
         transactionRepo.save(tx);
-
-        Long senderId = tx.getSenderId();
-        Long receiverId = tx.getUserId();
-        Double amount = tx.getAmount();
-
-        // 3) Atualiza tabela Account
-        accountRepo.findById(receiverId).ifPresent(acc -> {
-            acc.setBalance(acc.getBalance() + amount);
-            accountRepo.save(acc);
-        });
-
-        accountRepo.findById(senderId).ifPresent(acc -> {
-            acc.setBalance(acc.getBalance() - amount);
-            accountRepo.save(acc);
-        });
     }
 
+    // Listar transações pendentes
     @Override
     public List<Transaction> listPendingTransactions(Long userId) {
         return transactionRepo.findByUserIdAndStatusOrderByCreatedAtDesc(
