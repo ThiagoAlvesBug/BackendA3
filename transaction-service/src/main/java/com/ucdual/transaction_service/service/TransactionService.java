@@ -10,11 +10,11 @@ public interface TransactionService {
 
     Double getBalance(Long userId);
 
-    String deposit(DepositRequest request);
+    void deposit(DepositRequest request);
 
     void transfer(TransferRequest request);
 
-    void confirmTransaction(Long transactionId, boolean accepted);
+    void confirmTransaction(Long userId, Long transactionId, boolean accepted);
 
     List<Transaction> listPendingTransactions(Long userId);
 

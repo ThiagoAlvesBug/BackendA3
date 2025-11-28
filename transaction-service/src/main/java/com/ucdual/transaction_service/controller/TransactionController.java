@@ -1,80 +1,96 @@
 package com.ucdual.transaction_service.controller;
 
 import java.util.List;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
+import org.springframework.web.bind.annotation.*;
 import com.ucdual.transaction_service.dto.DepositRequest;
 import com.ucdual.transaction_service.dto.Response;
 import com.ucdual.transaction_service.dto.TransferRequest;
 import com.ucdual.transaction_service.model.Transaction;
 import com.ucdual.transaction_service.service.TransactionService;
-
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("users/{userId}")
+@RequestMapping("/users/{userId}")
 @RequiredArgsConstructor
 public class TransactionController {
 
     private final TransactionService service;
 
-    @GetMapping("/balance/")
-    public Double getBalance(@PathVariable Long userId) {
-        return service.getBalance(userId);
+    @GetMapping("/balance")
+    public ResponseEntity<Double> getBalance(@PathVariable Long userId) {
+        try {
+            Double balance = service.getBalance(userId);
+            return ResponseEntity.ok(balance);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
     }
 
     @PostMapping("/deposit")
-    public String deposit(@RequestBody DepositRequest request) {
-        return service.deposit(request);
+    public ResponseEntity<Response> deposit(@PathVariable Long userId, @RequestBody DepositRequest request) {
+        try {
+            request.setUserId(userId);
+            service.deposit(request);
+            return ResponseEntity.ok(new Response(true, "Depósito realizado com sucesso"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new Response(false, e.getMessage()));
+        }
     }
 
     @PostMapping("/transfer")
-    public ResponseEntity<?> transfer(@PathVariable Long userId, @RequestBody TransferRequest request) {
+    public ResponseEntity<Response> transfer(@PathVariable Long userId, @RequestBody TransferRequest request) {
         try {
             request.setUserId(userId);
             service.transfer(request);
-            Response response = new Response();
-            response.setSuccess(true);
-            response.setMessage("Transferência realizada com sucesso");
-            return ResponseEntity.ok(response);
-
+            return ResponseEntity.ok(new Response(true, "Transferência criada com sucesso (pendente de confirmação)"));
         } catch (Exception e) {
-            Response response = new Response();
-            response.setSuccess(false);
-            response.setMessage(e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(response);
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new Response(false, e.getMessage()));
         }
     }
 
     @GetMapping("/transactions")
-    public List<Transaction> list(@PathVariable Long userId) {
-        return service.listTransactions(userId);
+    public ResponseEntity<List<Transaction>> getTransactions(@PathVariable Long userId) {
+        try {
+            List<Transaction> transacoes = service.listTransactions(userId);
+            return ResponseEntity.ok(transacoes);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
+    }
+
+    @GetMapping("/transactions/pending")
+    public ResponseEntity<List<Transaction>> listPending(@PathVariable Long userId) {
+        try {
+            List<Transaction> pending = service.listPendingTransactions(userId);
+            return ResponseEntity.ok(pending);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
     }
 
     @PutMapping("/transactions/{transactionId}/confirm")
-    public ResponseEntity<?> confirm(
+    public ResponseEntity<Response> confirm(
             @PathVariable Long userId,
             @PathVariable Long transactionId,
             @RequestParam boolean accepted) {
 
-        service.confirmTransaction(transactionId, accepted);
-        return ResponseEntity.ok("Transação atualizada");
+        try {
+            service.confirmTransaction(userId, transactionId, accepted);
+            return ResponseEntity.ok(new Response(true, "Transação atualizada com sucesso"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new Response(false, e.getMessage()));
+        }
     }
-
-    @GetMapping("/transactions/pending")
-    public List<Transaction> listPending(@PathVariable Long userId) {
-        return service.listPendingTransactions(userId);
-    }
-
 }
+
