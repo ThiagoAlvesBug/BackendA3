@@ -11,13 +11,14 @@ import com.ucdual.transaction_service.model.Transaction;
 import com.ucdual.transaction_service.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 
+// Controlador para gerenciar transações financeiras dos usuários
 @RestController
 @RequestMapping("/users/{userId}")
 @RequiredArgsConstructor
 public class TransactionController {
 
     private final TransactionService service;
-
+    // Endpoint para obter o saldo do usuário
     @GetMapping("/balance")
     public ResponseEntity<Double> getBalance(@PathVariable Long userId) {
         try {
@@ -28,7 +29,7 @@ public class TransactionController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
     }
-
+    // Endpoint para realizar um depósito na conta do usuário
     @PostMapping("/deposit")
     public ResponseEntity<Response> deposit(@PathVariable Long userId, @RequestBody DepositRequest request) {
         try {
@@ -41,7 +42,7 @@ public class TransactionController {
                     .body(new Response(false, e.getMessage()));
         }
     }
-
+    // Endpoint para realizar uma transferência para outro usuário
     @PostMapping("/transfer")
     public ResponseEntity<Response> transfer(@PathVariable Long userId, @RequestBody TransferRequest request) {
         try {
@@ -54,7 +55,7 @@ public class TransactionController {
                     .body(new Response(false, e.getMessage()));
         }
     }
-
+    // Endpoint para listar todas as transações do usuário
     @GetMapping("/transactions")
     public ResponseEntity<List<Transaction>> getTransactions(@PathVariable Long userId) {
         try {
@@ -65,7 +66,7 @@ public class TransactionController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
     }
-
+    // Endpoint para listar transações pendentes do usuário
     @GetMapping("/transactions/pending")
     public ResponseEntity<List<Transaction>> listPending(@PathVariable Long userId) {
         try {
@@ -76,7 +77,7 @@ public class TransactionController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
     }
-
+    // Endpoint para confirmar ou rejeitar uma transação pendente
     @PutMapping("/transactions/{transactionId}/confirm")
     public ResponseEntity<Response> confirm(
             @PathVariable Long userId,

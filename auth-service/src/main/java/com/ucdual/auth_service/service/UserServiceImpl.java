@@ -23,14 +23,14 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public User register(RegisterRequest request) {
-        // Cria usuário
+        // Criando usuário
         User user = new User();
         user.setName(request.getName());
         user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user = userRepository.save(user);
 
-        // Cria conta com saldo inicial 0
+        // Criando conta com saldo inicial zerado (pobre)
         Account account = new Account();
         account.setUserId(user.getId());
         account.setBalance(0.0);
@@ -38,7 +38,7 @@ public class UserServiceImpl implements UserService {
 
         return user;
     }
-
+    // Procurando usuário por email e validando senha
     @Override
     public LoginResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
@@ -51,7 +51,7 @@ public class UserServiceImpl implements UserService {
         String token = jwtUtil.generateToken(user.getEmail(), user.getId());
         return new LoginResponse(token, user.getId().toString());
     }
-    
+    // Procurando usuário por ID
     @Override
     public User findById(Long id) {
         return userRepository.findById(id)

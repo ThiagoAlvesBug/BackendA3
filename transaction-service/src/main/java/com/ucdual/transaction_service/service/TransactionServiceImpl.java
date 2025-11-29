@@ -15,6 +15,7 @@ import com.ucdual.transaction_service.repository.TransactionRepository;
 import com.ucdual.transaction_service.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 
+// Implementação do serviço de transações financeiras
 @Service
 @RequiredArgsConstructor
 public class TransactionServiceImpl implements TransactionService {
@@ -29,7 +30,7 @@ public class TransactionServiceImpl implements TransactionService {
                 .map(Account::getBalance)
                 .orElse(0.0);
     }
-
+    // Implementação do depósito
     @Override
     @Transactional
     public void deposit(DepositRequest request) {
@@ -56,7 +57,7 @@ public class TransactionServiceImpl implements TransactionService {
 
         transactionRepo.save(tx);
     }
-
+    // Implementação da transferência
     @Override
     @Transactional
     public void transfer(TransferRequest request) {
@@ -93,17 +94,17 @@ public class TransactionServiceImpl implements TransactionService {
 
         transactionRepo.save(tx);
     }
-
+    // Listagem de transações do usuário
     @Override
     public List<Transaction> listTransactions(Long userId) {
         return transactionRepo.findBySenderIdOrReceiverIdOrderByCreatedAtDesc(userId, userId);
     }
-
+    // Listagem de transações pendentes do usuário
     @Override
     public List<Transaction> listPendingTransactions(Long userId) {
         return transactionRepo.findByReceiverIdAndStatusOrderByCreatedAtDesc(userId, TransactionStatus.PENDING);
     }
-
+    // Confirmação ou rejeição de transação pendente
     @Override
     @Transactional
     public void confirmTransaction(Long userId, Long transactionId, boolean accepted) {

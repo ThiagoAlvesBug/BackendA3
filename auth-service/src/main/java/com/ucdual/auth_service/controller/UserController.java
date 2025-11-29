@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/users")
-@CrossOrigin(origins = "http://localhost:5173") // frontend local
+@CrossOrigin(origins = "http://localhost:5173") // URL para o frontend
 public class UserController {
 
     private final UserService userService;
@@ -19,7 +19,7 @@ public class UserController {
     @GetMapping("/{id}")
     public ResponseEntity<?> getById(@PathVariable Long id) {
 
-        User user = userService.findById(id); // usa exatamente seu método atual
+        User user = userService.findById(id);
 
         if (user == null) {
             return ResponseEntity.notFound().build();

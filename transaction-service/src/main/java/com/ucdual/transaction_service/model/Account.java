@@ -8,7 +8,7 @@ import lombok.Data;
 public class Account {
 
     @Id
-    private Long userId;   // mesmo ID do auth-service
+    private Long userId;
 
     private Double balance = 0.0;
 }

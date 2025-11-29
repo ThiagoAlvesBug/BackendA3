@@ -7,7 +7,7 @@ public class Response {
     private boolean success;
     private String message;
 
-    public Response() {} // já existe
+    public Response() {}
 
     public Response(boolean success, String message) {
         this.success = success;
