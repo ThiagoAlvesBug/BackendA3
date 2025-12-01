@@ -4,13 +4,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.ucdual.transaction_service.dto.DepositRequest;
 import com.ucdual.transaction_service.dto.TransferRequest;
-import com.ucdual.transaction_service.model.Account;
 import com.ucdual.transaction_service.model.Transaction;
 import com.ucdual.transaction_service.model.TransactionStatus;
+import com.ucdual.transaction_service.model.TransactionWithUsers;
 import com.ucdual.transaction_service.model.User;
-import com.ucdual.transaction_service.repository.AccountRepository;
 import com.ucdual.transaction_service.repository.TransactionRepository;
 import com.ucdual.transaction_service.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,41 +20,66 @@ public class TransactionServiceImpl implements TransactionService {
 
     private final TransactionRepository transactionRepo;
     private final UserRepository userRepo;
-    private final AccountRepository accountRepo;
+    // private final AccountRepository accountRepo;
 
     @Override
+
     public Double getBalance(Long userId) {
-        return accountRepo.findById(userId)
-                .map(Account::getBalance)
-                .orElse(0.0);
+        // Valida existência do remetente
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Usuário remetente não encontrado"));
+
+        List<Transaction> confirmedTransactions = transactionRepo
+                .findBySenderIdOrReceiverIdOrderByCreatedAtDesc(userId, userId)
+                .stream()
+                .filter(transaction -> transaction.getStatus() == TransactionStatus.CONFIRMED)
+                .toList();
+
+        double totalCredit = confirmedTransactions.stream()
+                .filter(tran -> userId != null && userId.equals(tran.getReceiverId()))
+                .mapToDouble(Transaction::getAmount)
+                .sum();
+
+        double totalDebit = confirmedTransactions.stream()
+                .filter(tran -> userId != null && userId.equals(tran.getSenderId()))
+                .mapToDouble(Transaction::getAmount)
+                .sum();
+
+        return user.getInitialBalance() + totalCredit - totalDebit;
     }
+
     // Implementação do depósito
-    @Override
-    @Transactional
-    public void deposit(DepositRequest request) {
-        Long userId = request.getUserId();
-        Double amount = request.getAmount();
+    /*
+     * @Override
+     * 
+     * @Transactional
+     * public void deposit(DepositRequest request) {
+     * Long userId = request.getUserId();
+     * Double amount = request.getAmount();
+     * 
+     * if (amount == null || amount <= 0) {
+     * throw new
+     * IllegalArgumentException("Valor do depósito deve ser maior que zero.");
+     * }
+     * 
+     * Account account = accountRepo.findById(userId)
+     * .orElseThrow(() -> new IllegalArgumentException("Conta não encontrada"));
+     * 
+     * account.setBalance(account.getBalance() + amount);
+     * accountRepo.save(account);
+     * 
+     * Transaction tx = new Transaction();
+     * tx.setSenderId(null);
+     * tx.setReceiverId(userId);
+     * tx.setAmount(amount);
+     * tx.setStatus(TransactionStatus.CONFIRMED);
+     * tx.setDescription("Depósito");
+     * tx.setCreatedAt(LocalDateTime.now());
+     * 
+     * transactionRepo.save(tx);
+     * }
+     */
 
-        if (amount == null || amount <= 0) {
-            throw new IllegalArgumentException("Valor do depósito deve ser maior que zero.");
-        }
-
-        Account account = accountRepo.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Conta não encontrada"));
-
-        account.setBalance(account.getBalance() + amount);
-        accountRepo.save(account);
-
-        Transaction tx = new Transaction();
-        tx.setSenderId(null);
-        tx.setReceiverId(userId);
-        tx.setAmount(amount);
-        tx.setStatus(TransactionStatus.CONFIRMED);
-        tx.setDescription("Depósito");
-        tx.setCreatedAt(LocalDateTime.now());
-
-        transactionRepo.save(tx);
-    }
     // Implementação da transferência
     @Override
     @Transactional
@@ -68,10 +91,11 @@ public class TransactionServiceImpl implements TransactionService {
         if (amount == null || amount <= 0) {
             throw new IllegalArgumentException("Valor da transferência deve ser maior que zero.");
         }
-
-        // Valida existência do remetente
-        Account senderAccount = accountRepo.findById(senderId)
-                .orElseThrow(() -> new IllegalArgumentException("Conta do remetente não encontrada"));
+        /*
+         * Account senderAccount = accountRepo.findById(senderId)
+         * .orElseThrow(() -> new
+         * IllegalArgumentException("Conta do remetente não encontrada"));
+         */
 
         // Busca destinatário pela chave Pix (email)
         User receiver = userRepo.findAll().stream()
@@ -80,7 +104,7 @@ public class TransactionServiceImpl implements TransactionService {
                 .orElseThrow(() -> new IllegalArgumentException("Chave Pix de destino não encontrada"));
 
         // Verifica saldo
-        if (senderAccount.getBalance() < amount) {
+        if (getBalance(senderId) < amount) {
             throw new IllegalArgumentException("Saldo insuficiente para transferência.");
         }
 
@@ -94,46 +118,106 @@ public class TransactionServiceImpl implements TransactionService {
 
         transactionRepo.save(tx);
     }
+
     // Listagem de transações do usuário
     @Override
     public List<Transaction> listTransactions(Long userId) {
         return transactionRepo.findBySenderIdOrReceiverIdOrderByCreatedAtDesc(userId, userId);
     }
+
     // Listagem de transações pendentes do usuário
     @Override
-    public List<Transaction> listPendingTransactions(Long userId) {
-        return transactionRepo.findByReceiverIdAndStatusOrderByCreatedAtDesc(userId, TransactionStatus.PENDING);
+    public List<TransactionWithUsers> listPendingTransactions(Long userId) {
+        return transactionRepo
+                .findByReceiverIdAndStatusOrderByCreatedAtDesc(userId, TransactionStatus.PENDING)
+                .stream()
+                .map(tx -> {
+                    TransactionWithUsers txWithUsers = new TransactionWithUsers();
+                    txWithUsers.setId(tx.getId());
+                    txWithUsers.setSenderId(tx.getSenderId());
+                    txWithUsers.setReceiverId(tx.getReceiverId());
+                    txWithUsers.setAmount(tx.getAmount());
+                    txWithUsers.setStatus(tx.getStatus());
+                    txWithUsers.setDescription(tx.getDescription());
+                    txWithUsers.setCreatedAt(tx.getCreatedAt());
+
+                    User sender = userRepo.findById(tx.getSenderId())
+                            .orElseThrow(() -> new IllegalArgumentException("Usuário remetente não encontrado"));
+                    User receiver = userRepo.findById(tx.getReceiverId())
+                            .orElseThrow(() -> new IllegalArgumentException("Usuário destinatário não encontrado"));
+
+                    txWithUsers.setSender(sender);
+                    txWithUsers.setReceiver(receiver);
+
+                    return txWithUsers;
+                }).toList();
     }
+
+    // Listagem de transações confirmadas do usuário
+    @Override
+    public List<TransactionWithUsers> listConfirmedTransactions(Long userId) {
+        return transactionRepo
+                .findBySenderIdOrReceiverIdOrderByCreatedAtDesc(userId, userId)
+                .stream()
+                .filter(transaction -> transaction.getStatus() == TransactionStatus.CONFIRMED)
+                .map(tx -> {
+                    TransactionWithUsers txWithUsers = new TransactionWithUsers();
+                    txWithUsers.setId(tx.getId());
+                    txWithUsers.setSenderId(tx.getSenderId());
+                    txWithUsers.setReceiverId(tx.getReceiverId());
+                    txWithUsers.setAmount(tx.getAmount());
+                    txWithUsers.setStatus(tx.getStatus());
+                    txWithUsers.setDescription(tx.getDescription());
+                    txWithUsers.setCreatedAt(tx.getCreatedAt());
+
+                    User sender = userRepo.findById(tx.getSenderId())
+                            .orElseThrow(() -> new IllegalArgumentException("Usuário remetente não encontrado"));
+                    User receiver = userRepo.findById(tx.getReceiverId())
+                            .orElseThrow(() -> new IllegalArgumentException("Usuário destinatário não encontrado"));
+
+                    txWithUsers.setSender(sender);
+                    txWithUsers.setReceiver(receiver);
+
+                    return txWithUsers;
+                }).toList();
+    }
+
     // Confirmação ou rejeição de transação pendente
     @Override
     @Transactional
     public void confirmTransaction(Long userId, Long transactionId, boolean accepted) {
-        Transaction tx = transactionRepo.findById(transactionId)
+        Transaction transaction = transactionRepo.findById(transactionId)
                 .orElseThrow(() -> new IllegalArgumentException("Transação não encontrada"));
 
-        if (tx.getStatus() != TransactionStatus.PENDING) {
+        if (transaction.getStatus() != TransactionStatus.PENDING) {
             throw new IllegalStateException("Transação já foi confirmada ou rejeitada");
         }
 
         if (accepted) {
             // Credita receptor e debita remetente
-            Account receiverAccount = accountRepo.findById(tx.getReceiverId())
-                    .orElseThrow(() -> new IllegalArgumentException("Conta do destinatário não encontrada"));
+            /*
+             * Account receiverAccount = accountRepo.findById(transaction.getReceiverId())
+             * .orElseThrow(() -> new
+             * IllegalArgumentException("Conta do destinatário não encontrada"));
+             * 
+             * Account senderAccount = accountRepo.findById(transaction.getSenderId())
+             * .orElseThrow(() -> new
+             * IllegalArgumentException("Conta do remetente não encontrada"));
+             * 
+             * senderAccount.setBalance(senderAccount.getBalance() -
+             * transaction.getAmount());
+             * receiverAccount.setBalance(receiverAccount.getBalance() +
+             * transaction.getAmount());
+             * 
+             * accountRepo.save(senderAccount);
+             * accountRepo.save(receiverAccount);
+             */
 
-            Account senderAccount = accountRepo.findById(tx.getSenderId())
-                    .orElseThrow(() -> new IllegalArgumentException("Conta do remetente não encontrada"));
-
-            senderAccount.setBalance(senderAccount.getBalance() - tx.getAmount());
-            receiverAccount.setBalance(receiverAccount.getBalance() + tx.getAmount());
-
-            accountRepo.save(senderAccount);
-            accountRepo.save(receiverAccount);
-
-            tx.setStatus(TransactionStatus.CONFIRMED);
+            transaction.setStatus(TransactionStatus.CONFIRMED);
         } else {
-            tx.setStatus(TransactionStatus.REJECTED);
+            transaction.setStatus(TransactionStatus.REJECTED);
         }
 
-        transactionRepo.save(tx);
+        transactionRepo.save(transaction);
     }
 }

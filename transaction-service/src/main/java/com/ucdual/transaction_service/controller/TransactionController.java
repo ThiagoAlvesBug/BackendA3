@@ -8,6 +8,7 @@ import com.ucdual.transaction_service.dto.DepositRequest;
 import com.ucdual.transaction_service.dto.Response;
 import com.ucdual.transaction_service.dto.TransferRequest;
 import com.ucdual.transaction_service.model.Transaction;
+import com.ucdual.transaction_service.model.TransactionWithUsers;
 import com.ucdual.transaction_service.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 
@@ -30,7 +31,7 @@ public class TransactionController {
         }
     }
     // Endpoint para realizar um depósito na conta do usuário
-    @PostMapping("/deposit")
+    /*@PostMapping("/deposit")
     public ResponseEntity<Response> deposit(@PathVariable Long userId, @RequestBody DepositRequest request) {
         try {
             request.setUserId(userId);
@@ -41,7 +42,7 @@ public class TransactionController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new Response(false, e.getMessage()));
         }
-    }
+    }*/
     // Endpoint para realizar uma transferência para outro usuário
     @PostMapping("/transfer")
     public ResponseEntity<Response> transfer(@PathVariable Long userId, @RequestBody TransferRequest request) {
@@ -68,9 +69,20 @@ public class TransactionController {
     }
     // Endpoint para listar transações pendentes do usuário
     @GetMapping("/transactions/pending")
-    public ResponseEntity<List<Transaction>> listPending(@PathVariable Long userId) {
+    public ResponseEntity<List<TransactionWithUsers>> listPending(@PathVariable Long userId) {
         try {
-            List<Transaction> pending = service.listPendingTransactions(userId);
+            List<TransactionWithUsers> pending = service.listPendingTransactions(userId);
+            return ResponseEntity.ok(pending);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
+    }
+    // Endpoint para listar transações pendentes do usuário
+    @GetMapping("/transactions/confirmed")
+    public ResponseEntity<List<TransactionWithUsers>> listConfirmed(@PathVariable Long userId) {
+        try {
+            List<TransactionWithUsers> pending = service.listConfirmedTransactions(userId);
             return ResponseEntity.ok(pending);
         } catch (Exception e) {
             e.printStackTrace();

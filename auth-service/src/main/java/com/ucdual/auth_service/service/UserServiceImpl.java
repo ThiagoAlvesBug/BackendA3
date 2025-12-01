@@ -4,7 +4,6 @@ import com.ucdual.auth_service.dto.LoginRequest;
 import com.ucdual.auth_service.dto.LoginResponse;
 import com.ucdual.auth_service.dto.RegisterRequest;
 import com.ucdual.auth_service.model.User;
-import com.ucdual.auth_service.model.Account;
 import com.ucdual.auth_service.repository.UserRepository;
 import com.ucdual.auth_service.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +16,7 @@ import com.ucdual.auth_service.util.JwtUtil;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
-    private final AccountRepository accountRepository; // Adicionado
+    //private final AccountRepository accountRepository; // Adicionado
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
@@ -31,10 +30,10 @@ public class UserServiceImpl implements UserService {
         user = userRepository.save(user);
 
         // Criando conta com saldo inicial zerado (pobre)
-        Account account = new Account();
-        account.setUserId(user.getId());
-        account.setBalance(0.0);
-        accountRepository.save(account);
+        //Account account = new Account();
+        //account.setUserId(user.getId());
+        //account.setBalance(0.0);
+        //accountRepository.save(account);
 
         return user;
     }
